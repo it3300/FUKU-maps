@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FUKUマップ | カジュアル＆洗練されたショップ検索</title>
+    <meta name="description" content="セレクトショップの取り扱いブランドを確認できる、服好きのためのスタイリッシュなマップアプリ。">
+
+    <!-- Google Fonts: Inter & Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Outfit:wght@300;600;700&family=Noto+Sans+JP:wght@300;400;700&display=swap"
+        rel="stylesheet">
+
+    
+    <style>
+:root {
+    --bg-light: #fdfdfd;
+    --accent-brown: #795548;
+    /* Warm Brown */
+    --accent-brown-light: #d7ccc8;
+    --text-primary: #37474f;
+    /* Dark Blue Grey for better readability */
+    --text-secondary: #78909c;
+    --glass-bg: rgba(255, 255, 255, 0.75);
+    --glass-border: rgba(0, 0, 0, 0.05);
+    --transition-smooth: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Noto Sans JP', 'Inter', sans-serif;
+    background-color: var(--bg-light);
+    color: var(--text-primary);
+    overflow: hidden;
+    height: 100vh;
+}
+
+#app {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+/* Map Styling */
+#map-container {
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    position: relative;
+}
+
+#gmap-embed {
+    /* No filter for light theme to keep it natural, or very slight desaturation */
+    filter: grayscale(0.2) contrast(1.1);
+}
+
+#map-overlay-mask {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(circle, transparent 70%, rgba(255, 255, 255, 0.3) 100%);
+}
+
+/* Glassmorphism Classes (Light) */
+.glass-container {
+    background: var(--glass-bg);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+    z-index: 10;
+}
+
+/* Top Bar Layout */
+#top-bar {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    display: flex;
+    align-items: stretch;
+    gap: 12px;
+    z-index: 10;
+}
+
+/* Header */
+header {
+    padding: 16px 24px;
+}
+
+.brand-title {
+    font-family: 'Outfit', 'Noto Sans JP', sans-serif;
+    font-size: 1.4rem;
+    letter-spacing: 2px;
+    font-weight: 700;
+    margin-bottom: 2px;
+    color: var(--accent-brown);
+}
+
+.tagline {
+    font-size: 0.65rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* Shop Navigator */
+#shop-navigator {
+    position: absolute;
+    bottom: 25px;
+    left: 20px;
+    width: 300px;
+    max-height: 55vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.nav-controls {
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid var(--glass-border);
+}
+
+#brand-search {
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    width: 100%;
+    font-size: 0.85rem;
+    outline: none;
+}
+
+#brand-search::placeholder {
+    color: var(--text-secondary);
+}
+
+.search-icon {
+    color: var(--accent-brown);
+}
+
+.shop-list-scroll {
+    overflow-y: auto;
+    padding: 8px;
+}
+
+.shop-list-scroll::-webkit-scrollbar {
+    width: 3px;
+}
+
+.shop-list-scroll::-webkit-scrollbar-thumb {
+    background: var(--accent-brown-light);
+    border-radius: 10px;
+}
+
+.shop-item {
+    padding: 12px 16px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+    margin-bottom: 4px;
+}
+
+.shop-item:hover {
+    background: rgba(121, 85, 72, 0.05);
+}
+
+.shop-item.active {
+    background: rgba(121, 85, 72, 0.1);
+    border: 1px solid var(--accent-brown-light);
+}
+
+.shop-item-name {
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: var(--accent-brown);
+    margin-bottom: 2px;
+}
+
+.shop-item-brands {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Details Sidebar */
+#sidebar {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    bottom: 25px;
+    width: 360px;
+    padding: 35px 28px;
+    transition: var(--transition-smooth);
+    transform: translateX(0);
+}
+
+#sidebar.hidden {
+    transform: translateX(calc(100% + 40px));
+}
+
+.icon-btn {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+}
+
+.icon-btn:hover {
+    color: var(--accent-brown);
+}
+
+/* Shop Details */
+.shop-name {
+    font-family: 'Outfit', 'Noto Sans JP', sans-serif;
+    font-size: 1.6rem;
+    margin-bottom: 12px;
+    color: var(--accent-brown);
+    line-height: 1.2;
+}
+
+.shop-desc {
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    line-height: 1.7;
+    margin-bottom: 25px;
+    opacity: 0.9;
+}
+
+.brand-list-title {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    letter-spacing: 1px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--glass-border);
+    padding-bottom: 6px;
+}
+
+.brand-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.brand-tag {
+    background: #f5f5f5;
+    border: 1px solid var(--glass-border);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    color: var(--accent-brown);
+    transition: var(--transition-smooth);
+}
+
+.brand-tag:hover {
+    background: var(--accent-brown);
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(121, 85, 72, 0.2);
+}
+
+/* Loader */
+.loader-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--bg-light);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(121, 85, 72, 0.1);
+    border-top-color: var(--accent-brown);
+    border-radius: 50%;
+    animation: spin 0.8s ease-in-out infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ====================== */
+/* Ad Banner Styles        */
+/* ====================== */
+#ad-banner-top {
+    transition: var(--transition-smooth);
+}
+
+#ad-banner-top.ad-hidden {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-20px);
+}
+
+.ad-container {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    height: 100%;
+}
+
+.ad-slot {
+    height: 100%;
+    min-width: 200px;
+    border-radius: 16px;
+    overflow: hidden;
+    background: var(--glass-bg);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+}
+
+.ad-close {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 1px solid var(--glass-border);
+    background: white;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transition: var(--transition-smooth);
+    line-height: 1;
+}
+
+.ad-close:hover {
+    color: var(--accent-brown);
+    transform: scale(1.1);
+}
+
+/* Placeholder (remove after AdSense is set up) */
+.ad-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 0 20px;
+    background: linear-gradient(135deg, #fafafa 0%, #f0ebe8 100%);
+    border: 2px dashed var(--accent-brown-light);
+    border-radius: 16px;
+}
+
+.ad-placeholder-icon {
+    font-size: 1.1rem;
+    opacity: 0.6;
+}
+
+.ad-placeholder-text {
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--accent-brown);
+    letter-spacing: 3px;
+    opacity: 0.5;
+}
+
+/* Mobile Adjustments */
+@media (max-width: 768px) {
+    #shop-navigator {
+        width: calc(100% - 40px);
+        max-height: 35vh;
+        bottom: 20px;
+    }
+}
+</style>
+</head>
+
+<body>
+    <div id="app">
+        <!-- Google Maps Embed Iframe -->
+        <div id="map-container">
+            <iframe id="gmap-embed" width="100%" height="100%" style="border:0;" allowfullscreen="" loading="lazy"
+                referrerpolicy="no-referrer-when-downgrade">
+            </iframe>
+            <div id="map-overlay-mask"></div>
+        </div>
+
+        <!-- Top Bar: Header + Ad Banner -->
+        <div id="top-bar">
+            <header class="glass-container">
+                <h1 class="brand-title">FUKUマップ</h1>
+                <p class="tagline">Select Shop &amp; Brand Finder</p>
+            </header>
+
+            <div id="ad-banner-top">
+                <div class="ad-container">
+                    <div class="ad-slot" id="ad-slot-top">
+                        <!-- ▼▼▼ ここにGoogle AdSenseのコードを貼り付けてください ▼▼▼ -->
+                        <!--
+                        <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX"
+                            crossorigin="anonymous"></script>
+                        <ins class="adsbygoogle"
+                            style="display:inline-block;width:auto;height:100%"
+                            data-ad-client="ca-pub-XXXXXXXXXXXXXXXX"
+                            data-ad-slot="XXXXXXXXXX"></ins>
+                        <script>
+                            (adsbygoogle = window.adsbygoogle || []).push({});
+                        </script>
+                        -->
+                        <!-- ▲▲▲ AdSenseコードここまで ▲▲▲ -->
+
+                        <!-- プレースホルダー（AdSense設定後に削除してください） -->
+                        <div class="ad-placeholder">
+                            <span class="ad-placeholder-icon">📢</span>
+                            <span class="ad-placeholder-text">AD SPACE</span>
+                        </div>
+                    </div>
+                    <button id="ad-close-btn" class="ad-close" title="閉じる">&times;</button>
+                </div>
+            </div>
+        </div>
+
+        <aside id="sidebar" class="glass-container hidden">
+            <button id="close-sidebar" class="icon-btn">&times;</button>
+            <div id="shop-details">
+                <!-- Content injected via JS -->
+            </div>
+        </aside>
+
+        <!-- Shop Navigation List -->
+        <section id="shop-navigator" class="glass-container">
+            <div class="nav-controls">
+                <input type="text" id="brand-search" placeholder="ブランドや店舗を検索...">
+                <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+            </div>
+            <div id="shop-list" class="shop-list-scroll">
+                <!-- Shop items will be injected here -->
+            </div>
+        </section>
+
+        <!-- Loading State -->
+        <div id="loader" class="loader-overlay">
+            <div class="spinner"></div>
+        </div>
+    </div>
+
+    <!-- Main JS -->
+    <script>
+// FUKUマップ - 東京都内の有名セレクトショップ 200店舗データ
+const SHOPS = [
+    // --- 青山・表参道エリア ---
+    { id: 1, name: "L'ÉCHOPPE 青山店", description: "世界中からジャンルレスに集められた究極の逸品が揃う。独自の審美眼による別注アイテムが人気。", query: "L'ECHOPPE 青山店", brands: ["COMOLI", "AURALEE", "NICENESS", "MAATEE&SONS", "HEUGN"] },
+    { id: 2, name: "ADELAIDE", description: "アート、建築、ファッションを融合させた青山屈指のハイエンドセレクトショップ。", query: "アデライデ 表参道", brands: ["BALENCIAGA", "VETEMENTS", "LOEWE", "JACQUEMUS", "MARINE SERRE"] },
+    { id: 3, name: "H BEAUTY&YOUTH", description: "「東京の大人クール」をテーマにした、ユナイテッドアローズが手掛けるハイエンドストア。", query: "H BEAUTY&YOUTH 青山", brands: ["H BEAUTY&YOUTH", "AURALEE", "COMOLI", "Graphpaper"] },
+    { id: 4, name: "SUPER A MARKET 青山", description: "Aランクの品質を誇るハイブランドから家具、コスメまで揃うコンセプトショップ。", query: "SUPER A MARKET 青山", brands: ["Maison Margiela", "Dries Van Noten", "THE ROW", "BOTTEGA VENETA"] },
+    { id: 5, name: "District UNITED ARROWS", description: "クリエイティビティと職人技に焦点を当てた、UAの実験的なメンズショップ。", query: "District UNITED ARROWS", brands: ["kolor", "Scye", "ENGINEERED GARMENTS", "COMME des GARCONS"] },
+    { id: 6, name: "Graphpaper Tokyo", description: "南貴之氏が手掛ける、ギャラリーのような空間で展開されるミニマルなウェア。", query: "Graphpaper Tokyo", brands: ["Graphpaper", "TENNE HANDCRAFTED MODERN"] },
+    { id: 7, name: "Chaos 表参道", description: "「何物にも縛られない、自由な女性」をイメージした、大人のためのセレクトショップ。", query: "Chaos 表参道", brands: ["Chaos", "ATON", "REMI RELIEF"] },
+    { id: 8, name: "edition 表参道ヒルズ店", description: "ミリタリー、ワーク、スポーツを軸にしたデザイナーズブランドのセレクト。", query: "edition 表参道ヒルズ", brands: ["Maison Margiela", "Dries Van Noten", "HYKE", "Isabel Marant"] },
+    { id: 9, name: "ESTNATION 青山店", description: "「大人のためのラグジュアリー」を体現する、洗練された品揃えの大型セレクトショップ。", query: "ESTNATION 青山店", brands: ["ESTNATION", "MONCLER", "Chloe", "Marni"] },
+    { id: 10, name: "DRAWER 青山店", description: "タイムレスな美しさを追求する、究極のウィメンズセレクトショップ。", query: "Drawer 青山店", brands: ["Drawer", "Chloe", "Marni"] },
+    { id: 11, name: "L'Appartement 青山店", description: "「今の自分に似合う服」を提案する、洗練された大人の女性のためのショップ。", query: "L'Appartement 青山", brands: ["L'Appartement original", "GOOD GRIEF!", "REMI RELIEF"] },
+    { id: 12, name: "BLOOM&BRANCH AOYAMA", description: "和のテイストを取り入れた、クラフト感溢れる上質なウェアとライフスタイル雑貨。", query: "BLOOM&BRANCH 青山", brands: ["KIJI", "Phlannel", "nanamica"] },
+    { id: 13, name: "VILLA 217", description: "デザイナーズブランドの歴史的なアーカイブやヴィンテージを扱う希少なショップ。", query: "VILLA 217 表参道", brands: ["Vintage Designer", "Archive"] },
+    { id: 14, name: "AMORE Vintage Aoyama", description: "世界中から収集されたシャネルやエルメスのアーカイブが揃うヴィンテージ専門店。", query: "AMORE Vintage 青山", brands: ["CHANEL", "HERMES", "Vintage"] },
+    { id: 15, name: "BLAMINK TOKYO", description: "卓越した技術と美意識で作り上げられる、唯一無二のアパレルショップ。", query: "BLAMINK 青山", brands: ["BLAMINK"] },
+    { id: 16, name: "Arts & Science Aoyama", description: "スタイリスト・ソニア パーク氏が提案する、日常の中で豊かさを感じる服と道具。", query: "Arts & Science 青山", brands: ["Arts & Science"] },
+    { id: 17, name: "COMME des GARCONS 青山店", description: "川久保玲氏の信念が息づく、ブランドの精神を最も色濃く反映した旗艦店。", query: "COMME des GARCONS 青山", brands: ["COMME des GARCONS", "noir kei ninomiya"] },
+    { id: 18, name: "PRADA 青山店", description: "ヘルツォーク＆ド・ムーロン設計による、建築美と最新コレクションが融合。", query: "PRADA 青山店", brands: ["PRADA"] },
+    { id: 19, name: "Sacai Aoyama", description: "ハイブリッドなデザインで世界を魅了する阿部千登勢氏によるシグネチャーショップ。", query: "Sacai 青山", brands: ["Sacai"] },
+    { id: 20, name: "Acne Studios Aoyama", description: "ストックホルム発のクリエイティブなデザインが揃う、日本最大の旗艦店。", query: "Acne Studios 青山", brands: ["Acne Studios"] },
+
+    // --- 原宿・明治神宮前エリア ---
+    { id: 21, name: "GR8", description: "ラフォーレ原宿のランドマーク。最先端のハイエンド・ストリートファッションを発信。", query: "GR8 原宿", brands: ["Rick Owens", "Off-White", "Martine Rose", "Balenciaga", "YEEZY"] },
+    { id: 22, name: "Nubian Harajuku", description: "国内外のトップストリートブランドを網羅する、原宿を代表するセレクトショップ。", query: "Nubian 原宿", brands: ["Rick Owens", "Amiri", "Palm Angels", "NEEDLES"] },
+    { id: 23, name: "BEAMS HARAJUKU", description: "BEAMSの創業の地。常に新しいカルチャーとファッションを提案し続ける。", query: "BEAMS 原宿", brands: ["BEAMS", "Needles", "ENGINEERED GARMENTS"] },
+    { id: 24, name: "UNITED ARROWS & SONS", description: "アイビーとストリートを融合させた、小木'Poggi'基史氏がディレクションするショップ。", query: "UNITED ARROWS & SONS 原宿", brands: ["UA & Sons", "NVy by", "5525gallery"] },
+    { id: 25, name: "STUDIOUS 原宿本店", description: "日本発ブランドに特化した、「日本発世界へ」を体現するハイエンドセレクト。", query: "STUDIOUS 原宿本店", brands: ["NEEDLES", "White Mountaineering", "N.HOOLYWOOD", "UNDERCOVER"] },
+    { id: 26, name: "PULP", description: "新旧を織り交ぜた独自のミックススタイルを提案する、注目のセレクトショップ。", query: "PULP 渋谷", brands: ["EYTYS", "C.E", "NAMACHEKO"] },
+    { id: 27, name: "KICKS LAB. 原宿", description: "世界のレアなスニーカーが手に入る、スニーカーヘッズの聖地。", query: "KICKS LAB. 原宿", brands: ["Nike", "Adidas", "New Balance", "Jordan"] },
+    { id: 28, name: "Styles Harajuku", description: "「Sports Fashion」をテーマに、洗練されたスニーカーとアパレルを提案。", query: "Styles 原宿", brands: ["Adidas", "Nike", "New Balance", "Reebok"] },
+    { id: 29, name: "6 (ROKU) HARAJUKU", description: "カジュアルでありながら女性らしい、ヴィンテージ感溢れるセレクト。", query: "6 ROKU 原宿", brands: ["6 (ROKU)", "Vintage"] },
+    { id: 30, name: "Forget-me-nots", description: "女性向けのストリートファッションとスニーカーに特化したセレクトショップ。", query: "Forget-me-nots 代官山", brands: ["Nike", "Adidas", "Jacquemus"] },
+    { id: 31, name: "Billionaire Boys Club", description: "ファレル・ウィリアムスによって設立された、アイコニックなストリートウェア。", query: "Billionaire Boys Club 原宿", brands: ["BBC", "Ice Cream"] },
+    { id: 32, name: "A+TOKYO", description: "日本製の高いクオリティとデザイン性を兼ね備えたアクティブウェアショップ。", query: "A+TOKYO 原宿", brands: ["A+TOKYO"] },
+    { id: 33, name: "UNITED TOKYO 原宿", description: "「ALL MADE IN JAPAN」に拘り、圧倒的なコストパフォーマンスを実現するブランド。", query: "UNITED TOKYO 原宿", brands: ["UNITED TOKYO"] },
+    { id: 34, name: "PUBLIC TOKYO 原宿", description: "カジュアルからオフィスまで、上質な日本のデイリーウェアを提案。", query: "PUBLIC TOKYO 原宿", brands: ["PUBLIC TOKYO"] },
+    { id: 35, name: "Casper John 原宿", description: "トレンドとオリジナリティを追求した、若者に人気のセレクトショップ。", query: "Casper John 原宿", brands: ["Casper John"] },
+    { id: 36, name: "RAGEBLUE 原宿", description: "デイリーに使えるトレンドアイテムが揃う、圧倒的な品揃えのフラッグシップ店。", query: "RAGEBLUE 原宿", brands: ["RAGEBLUE"] },
+    { id: 37, name: "Kastane 原宿", description: "アメリカンクラシックをベースに、自由なカジュアルスタイルを提案。", query: "Kastane 原宿", brands: ["Kastane"] },
+    { id: 38, name: "CIAOPANIC 原宿", description: "国内外から集めた高感度なアイテムと、オリジナルのウェアを展開。", query: "CIAOPANIC 原宿", brands: ["CIAOPANIC"] },
+    { id: 39, name: "WISM 渋谷", description: "独自の審美眼でストリートの今を切り取る、ベイクルーズのセレクトショップ。", query: "WISM 渋谷", brands: ["Comoli", "The North Face", "WISM original"] },
+    { id: 40, name: "NEIGHBORHOOD Harajuku", description: "モーターサイクルやミリタリーを背景にした、東京ストリートの重鎮ブランド。", query: "NEIGHBORHOOD 原宿", brands: ["NEIGHBORHOOD"] },
+
+    // --- 渋谷・神南エリア ---
+    { id: 41, name: "BEAMS MEN 渋谷", description: "BEAMSのメンズ総本山。ベーシックからデザイナーズまで幅広くラインナップ。", query: "BEAMS MEN 渋谷", brands: ["BEAMS", "Arc'teryx", "Patagonia", "Barbour"] },
+    { id: 42, name: "UNITED ARROWS 渋谷スクランブルスクエア店", description: "都会的で洗練されたスタイルを提案する、最新の旗艦店。", query: "UNITED ARROWS 渋谷スクランブルスクエア", brands: ["UNITED ARROWS", "HYKE", "AURALEE"] },
+    { id: 43, name: "SHIPS 渋谷店", description: "「STYLISH STANDARD」を掲げる、伝統に敬意を払った老舗セレクトショップ。", query: "SHIPS 渋谷店", brands: ["SHIPS", "Valstar", "Guy Rover"] },
+    { id: 44, name: "TOMORROWLAND 渋谷本店", description: "世界中から厳選されたラグジュアリーブランドと、高品質な自社製品が揃う。", query: "TOMORROWLAND 渋谷本店", brands: ["TOMORROWLAND", "James Perse", "Isabel Marant"] },
+    { id: 45, name: "ADAM ET ROPÉ 渋谷パルコ店", description: "世界中から旬なブランドをセレクトし、洗練された遊び心を提案。", query: "ADAM ET ROPE 渋谷パルコ", brands: ["ADAM ET ROPE", "GANNI", "Biotop"] },
+    { id: 46, name: "MIDWEST TOKYO", description: "「世界一のラグジュアリーブランドを扱う」を目標に掲げる実力派セレクト。", query: "MIDWEST 渋谷", brands: ["RAF SIMONS", "JW ANDERSON", "TOGA", "UNDERCOVER"] },
+    { id: 47, name: "GARDEN Shibuya", description: "アンダーグラウンドな空気感を纏う、エッジの効いたドメスティックブランドが充実。", query: "GARDEN 渋谷", brands: ["NEEDLES", "SUNSEA", "UNUSED"] },
+    { id: 48, name: "Ware-mo-kou (吾亦紅)", description: "独自の死生観や哲学を感じさせる、工芸品のような服をセレクトする唯一無二の店。", query: "吾亦紅 渋谷", brands: ["Toogood", "Kaval", "Bergfabel"] },
+    { id: 49, name: "Nid Tokyo", description: "静かな主張を感じさせる、構築的なデザインのブランドをセレクト。", query: "Nid Tokyo 渋谷", brands: ["O project", "Jan-Jan Van Essche"] },
+    { id: 50, name: "SULLEN TOKYO", description: "世界中から集められたヴィンテージアーカイブとモダンなセレクトが融合。", query: "SULLEN TOKYO 渋谷", brands: ["Vintage Archive", "Namacheko"] },
+    { id: 51, name: "FREAK'S STORE 渋谷", description: "アメリカンカジュアルを軸に、キャンプや趣味の要素をミックスしたショップ。", query: "FREAK'S STORE 渋谷", brands: ["Canada Goose", "Needles", "FREAK'S STORE original"] },
+    { id: 52, name: "Journal Standard 渋谷", description: "ワーク、ミリタリー、カジュアルをベースにしたトレンドを感じさせるセレクト。", query: "Journal Standard 渋谷", brands: ["Journal Standard", "Danton", "Snow Peak"] },
+    { id: 53, name: "Nano Universe 渋谷", description: "都会的でスマートなカジュアルスタイルを提案する、国内最大級のセレクト。", query: "Nano Universe 渋谷", brands: ["Nano Universe", "Barbour"] },
+    { id: 54, name: "O 代官山", description: "国内外の気鋭デザイナーズブランドを独自の視点でセレクトするコンセプトショップ。", query: "O 代官山", brands: ["KAIKO", "NEONSIGN", "DAIRIKU"] },
+    { id: 55, name: "KISS LAYERED MIYASHITA PARK", description: "ニューヨーク発のKITHによる、ラグジュアリーなストリート体験を提案。", query: "KITH MIYASHITA PARK", brands: ["KITH"] },
+    { id: 56, name: "CLOUDY MIYASHITA PARK", description: "アフリカの伝統的なテキスタイルと現代的なデザインを融合させたショップ。", query: "CLOUDY MIYASHITA PARK", brands: ["CLOUDY"] },
+    { id: 57, name: "A.T.A.D", description: "adidasとatmosのパートナーシップによるコンセプトストア。", query: "ATAD 原宿", brands: ["Adidas", "Atmos"] },
+    { id: 58, name: "Styles Shibuya", description: "スニーカーを軸に、最新のスポーツスタイルとカジュアルウェアを提案。", query: "Styles 渋谷", brands: ["Nike", "Adidas"] },
+    { id: 59, name: "Biotop Shirokanedai", description: "緑に囲まれた空間で、厳選されたハイブランドとライフスタイル雑貨を提案。", query: "ビオトープ 白金台", brands: ["COMOLI", "HYKE", "Cristaseya"] },
+    { id: 60, name: "Ragtag 渋谷店", description: "デザイナーズブランドのユーズド・セレクト。膨大なアーカイブに出会える場所。", query: "Ragtag 渋谷", brands: ["Maison Margiela", "COMME des GARCONS", "Supreme"] },
+
+    // --- 銀座・有楽町・丸の内エリア ---
+    { id: 61, name: "DOVER STREET MARKET GINZA", description: "川久保玲氏ディレクション。複数のブランドが入り混じる「美しいカオス」を体現。", query: "Dover Street Market Ginza", brands: ["COMME des GARCONS", "Gucci", "Prada", "Sacai", "Nike"] },
+    { id: 62, name: "BARNEYS NEW YORK 銀座店", description: "ニューヨーク発のスペシャリティストア。洗練された接客とラグジュアリーな空間。", query: "バーニーズニューヨーク 銀座", brands: ["Isaia", "Belvest", "Barneys original"] },
+    { id: 63, name: "ESTNATION 有楽町店", description: "都会的な男女のための「New Luxury」を提案する、開放感のあるショップ。", query: "ESTNATION 有楽町", brands: ["Tagliatore", "Lardini", "ESTNATION"] },
+    { id: 64, name: "SHIPS Primary Navy Label", description: "「SHIPS」の中でも特にハイエンドでクラシックなラインを展開するショップ。", query: "SHIPS 銀座", brands: ["Mackintosh", "Ships original"] },
+    { id: 65, name: "The Zabou Ginza", description: "「スタンダード」を追求し、普遍的な良さを持つアイテムを厳選。大阪の名店の東京拠点。", query: "ザボウ 銀座", brands: ["Saint James", "Resolut"] },
+    { id: 66, name: "VULCANIZE London 銀座", description: "英国の老舗ブランドが集結する、ロンドンの洗練を感じさせるセレクト。", query: "ヴァルカナイズ・ロンドン 銀座", brands: ["Globe-Trotter", "Hackett London"] },
+    { id: 67, name: "Hankyu Men's Tokyo", description: "百貨店でありながら、世界各国のトップブランドが揃う超大型セレクトのような存在。", query: "阪急メンズ東京", brands: ["Tom Ford", "Givenchy", "Thom Browne"] },
+    { id: 68, name: "SUPER A MARKET 新宿", description: "青山に続く2店舗目。より都会的なアプローチで厳選されたブランドを提案。", query: "SUPER A MARKET 新宿", brands: ["Maison Margiela", "Dries Van Noten"] },
+    { id: 69, name: "United Arrows 丸の内店", description: "ビジネスからドレスまで、丸の内の街に相応しい気品あるセレクション。", query: "ユナイテッドアローズ 丸の内", brands: ["United Arrows", "Crockett & Jones"] },
+    { id: 70, name: "BEAMS LIGHTS 丸の内", description: "「Life as a Journey」をテーマに、旅の快適さとスタイルを提案。", query: "ビームス ライツ 丸の内", brands: ["BEAMS LIGHTS"] },
+    { id: 71, name: "Maker's Shirt Kamakura 丸ビル", description: "「鎌倉シャツ」として親しまれる、高品質なシャツの専門店。", query: "メーカーズシャツ鎌倉 丸ビル", brands: ["Kamakura Shirt"] },
+    { id: 72, name: "45R 銀座店", description: "45Rの旗艦店。天然素材の温もりと、手仕事の美しさをゆったりと体験できる。", query: "45R 銀座", brands: ["45R"] },
+    { id: 73, name: "NIWAKA 銀座店", description: "京都の美意識が息づくジュエリー。銀座の洗練された空間でその輝きを体験。", query: "NIWAKA 銀座", brands: ["NIWAKA"] },
+    { id: 74, name: "ST Dupont 銀座三越", description: "フランスの至宝、最高級のライターや筆記具、レザーグッズが揃う。", query: "ST Dupont 銀座三越", brands: ["ST Dupont"] },
+    { id: 75, name: "Sergio Rossi 銀座三越", description: "洗練された女性のためのラグジュアリーシューズブランド。", query: "Sergio Rossi 銀座三越", brands: ["Sergio Rossi"] },
+    { id: 76, name: "Oakley 銀座三越", description: "スポーツとライフスタイルを融合させた、機能美溢れるアイウェアの世界。", query: "Oakley 銀座三越", brands: ["Oakley"] },
+    { id: 77, name: "Mark & Lona Ginza Six", description: "ゴルフとファッションを融合。エッジの効いた遊び心あるゴルフウェアを展開。", query: "Mark & Lona GINZA SIX", brands: ["Mark & Lona"] },
+    { id: 78, name: "ST Dupont 阪急メンズ東京", description: "紳士のための極上の嗜み。一生モノの道具に出会える場所。", query: "ST Dupont 阪急メンズ", brands: ["ST Dupont"] },
+    { id: 79, name: "Camper 松屋銀座", description: "スペイン発。歩く喜びを追求した独創的なデザインのシューズブランド。", query: "Camper 松屋銀座", brands: ["Camper"] },
+    { id: 80, name: "KML Fashion House", description: "独自の視点で国内外のアーティストやブランドを繋ぐクリエイティブな場所。", query: "KML Fashion House", brands: ["KML"] },
+
+    // --- 代官山・中目黒・恵比寿エリア ---
+    { id: 81, name: "1LDK Apartments", description: "「1LDK」の世界観をより広く表現。カフェ、雑貨、ウェアをワンストップで提案。", query: "1LDK apartments 中目黒", brands: ["Universal Products", "STUDIO NICHOLSON", "MY___"] },
+    { id: 82, name: "nanamica Daikanyama", description: "「nanamica」の旗艦店。The North Face Purple Labelなど、機能と美を融合。", query: "nanamica 代官山", brands: ["nanamica", "The North Face Purple Label"] },
+    { id: 83, name: "Vendor", description: "「nonnative」を中心に、実用的で洗練されたカジュアルウェアと生活雑貨を展開。", query: "vendor 中目黒", brands: ["nonnative", "hobo", "YSTRDY'S TMRRW"] },
+    { id: 84, name: "Eliminator", description: "ロンドンと東京のカルチャーをミックス。テックウェアからパンクまでエッジな選定。", query: "ELIMINATOR 代官山", brands: ["Raf Simons", "Arc'teryx Veilance"] },
+    { id: 85, name: "Lift Etage", description: "「服を愛する人」へ。マルジェラやアーカイブ等、服の深淵を追求する店。", query: "Lift 代官山", brands: ["Maison Margiela", "Carol Christian Poell"] },
+    { id: 86, name: "OKURA", description: "日本の伝統的な藍染めと、アメリカンカジュアルが融合した独特の空気感。", query: "OKURA 代官山", brands: ["HOLLYWOOD RANCH MARKET", "Blue Blue"] },
+    { id: 87, name: "Haversack Flagship Store", description: "時代に流されない、普遍的なヴィンテージウェアのディテールを現代に。 ", query: "Haversack 代官山", brands: ["Haversack"] },
+    { id: 88, name: "Roots to Branches", description: "自然体でいられる、心地よい服と道具をセレクトしたライフスタイルショップ。", query: "Roots to Branches 中目黒", brands: ["AURALEE", "COMOLI", "blurhms"] },
+    { id: 89, name: "FRAPBOIS 中目黒本店", description: "フラボアの旗艦店。遊び心溢れるパッチワークやカラーリングが揃う。", query: "FRAPBOIS 中目黒", brands: ["FRAPBOIS"] },
+    { id: 90, name: "Hollywood Ranch Market", description: "1972年創業。アメリカンカジュアルをベースに、豊かなライフスタイルを提案。", query: "Hollywood Ranch Market 代官山", brands: ["HOLLYWOOD RANCH MARKET"] },
+    { id: 91, name: "SNS Tokyo (Sneakersnstuff)", description: "スウェーデン発。世界中の限定スニーカーが集まるグローバルセレクトショップ。", query: "SNS Tokyo 代官山", brands: ["Nike", "Adidas", "SNS"] },
+    { id: 92, name: "Camper 代官山店", description: "カンペールのクリエイティビティを最大限に表現した、広々とした旗艦店。", query: "Camper 代官山", brands: ["Camper"] },
+    { id: 93, name: "HOS 代官山", description: "「シンプル、ベーシック、スタンダード」を追求したこだわりの自社ブランドを展開。", query: "HOS 代官山", brands: ["HOS"] },
+    { id: 94, name: "JUZU", description: "Go Hemplを中心に、オーガニック素材と機能性を重視した心地よいショップ。", query: "JUZU 恵比寿", brands: ["Go Hemp"] },
+    { id: 95, name: "Makers Shirt Kamakura アトレ恵比寿", description: "忙しいビジネスパーソンのための、信頼のおけるシャツ選びのパートナー。", query: "メーカーズシャツ鎌倉 恵比寿", brands: ["Kamakura Shirt"] },
+    { id: 96, name: "Camper アトレ恵比寿", description: "デイリーに使いやすいモデルを厳選した、アクセス抜群の店舗。", query: "Camper 恵比寿", brands: ["Camper"] },
+    { id: 97, name: "Drastic", description: "世界中から見つけ出した、新しい発見のあるジュエリーとアクセサリーのお店。", query: "Drastic 代官山", brands: ["Selected Jewelry"] },
+    { id: 98, name: "Kijima Takayuki Daikanyama", description: "日本を代表する帽子職人による、被る人の魅力を引き出すハットメイカー。", query: "KIJIMA TAKAYUKI 代官山", brands: ["KIJIMA TAKAYUKI"] },
+    { id: 99, name: "5351 Pour Les Hommes 代官山", description: "モードなロックテイストと、大人の色気を提案するメンズセレクション。", query: "5351 代官山", brands: ["5351"] },
+    { id: 100, name: "Parking Daikanyama", description: "中目黒、代官山エリアを見渡すこだわりのセレクト。カフェも併設。", query: "Parking 代官山", brands: ["Selected Brands"] },
+
+    // --- 新宿エリア ---
+    { id: 101, name: "Isetan Men's (新宿)", description: "世界最高のメンズファッションが集結。フロア毎に異なる世界観を構築。", query: "伊勢丹メンズ館", brands: ["CELINE", "DIOR", "LOEWE", "TOM FORD"] },
+    { id: 102, name: "Beams Japan (新宿)", description: "日本をテーマに、伝統工芸からポップカルチャー、ファッションまでを編集。", query: "BEAMS JAPAN 新宿", brands: ["BEAMS", "Selected Crafts"] },
+    { id: 103, name: "Studious 新宿", description: "ルミネ内に位置。常に最新のドメスティックブランドの動向をチェックできる。", query: "STUDIOUS 新宿ルミネ", brands: ["NEEDLES", "LAD MUSICIAN", "UNDERCOVER"] },
+    { id: 104, name: "Journal Standard 新宿", description: "アメリカンクラシックをルーツに、多種多様なニーズに応えるラインナップ。", query: "Journal Standard 新宿", brands: ["Journal Standard", "Danton"] },
+    { id: 105, name: "United Arrows 新宿店", description: "ルミネ1内に位置。都会的で洗練された大人に向けたデイリーウェアを提案。", query: "ユナイテッドアローズ 新宿", brands: ["United Arrows", "HYKE"] },
+    { id: 106, name: "American Rag Cie 新宿", description: "待望の再始動。ボヘミアン、ミリタリー、カジュアルが融合した独自の世界観。", query: "アメリカンラグシー 新宿", brands: ["American Rag Cie", "Selected Items"] },
+    { id: 107, name: "Cons Lumine Est Shinjuku", description: "最新のトレンドと価格のバランスに優れた、若者に絶大な人気のショップ。", query: "Cons 新宿ルミネエスト", brands: ["Selected Brands"] },
+    { id: 108, name: "Sergio Rossi 伊勢丹新宿", description: "究極の履き心地と美しさを兼ね備えた、イタリアが誇る至高のシューズ。", query: "Sergio Rossi 伊勢丹新宿", brands: ["Sergio Rossi"] },
+    { id: 109, name: "Camper 伊勢丹メンズ", description: "ビジネスからカジュアルまで。男性向けの歩きやすい機能靴をセレクト。", query: "Camper 伊勢丹メンズ", brands: ["Camper"] },
+    { id: 110, name: "ST Dupont 伊勢丹メンズ", description: "一流の男に相応しい、フランス伝統のクラフトマンシップが息づく道具たち。", query: "ST Dupont 伊勢丹メンズ", brands: ["ST Dupont"] },
+    { id: 111, name: "NIWAKA 伊勢丹新宿", description: "和の心を形に。ブライダルからファッションまで美しいジュエリーを提案。", query: "NIWAKA 伊勢丹新宿", brands: ["NIWAKA"] },
+    { id: 112, name: "45R 伊勢丹新宿", description: "百貨店内にありながら、45Rの世界観を凝縮した上質な空間。", query: "45R 伊勢丹新宿", brands: ["45R"] },
+    { id: 113, name: "Makers Shirt Kamakura 新宿店", description: "新宿駅至近。ビジネスマン必見の、高品質シャツのライブラリ。", query: "メーカーズシャツ鎌倉 新宿", brands: ["Kamakura Shirt"] },
+    { id: 114, name: "Free City", description: "L.A.発。ライフスタイル、音楽、アートが融合した独特の世界観を提案。", query: "Free City 新宿", brands: ["Free City"] },
+    { id: 115, name: "FRAPBOIS 新宿マルイアネックス", description: "遊び心に溢れたフラボアの最新コレクションが揃う店舗。 ", query: "FRAPBOIS 新宿マルイアネックス", brands: ["FRAPBOIS"] },
+    { id: 116, name: "Marmot Store 新宿", description: "アウトドアのトップブランドによる、機能的かつスタイリッシュなギアと服。", query: "Marmot 新宿", brands: ["Marmot"] },
+    { id: 117, name: "Fred Perry ルミネ2", description: "原宿のエッセンスを取り入れた、コンパクトながら充実のセレクト。", query: "Fred Perry 新宿ルミネ2", brands: ["Fred Perry"] },
+    { id: 118, name: "Camper 新宿フラッグス", description: "開放的な空間で、じっくりと自分に合う一足を探せるコンセプトショップ。", query: "Camper 新宿フラッグス", brands: ["Camper"] },
+    { id: 119, name: "Navy.wo 新宿タカシマヤ", description: "女性らしい柔らかなシルエットと、こだわりの素材使いが特徴。", query: "Navy.wo 新宿タカシマヤ", brands: ["Navy.wo"] },
+    { id: 120, name: "ST Dupont 新宿タカシマヤ", description: "大切な人への贈り物にも。フランスの気品漂うラグジュアリーアイテムを。", query: "ST Dupont 新宿タカシマヤ", brands: ["ST Dupont"] },
+
+    // --- その他注目店舗 (東京全域) ---
+    { id: 121, name: "Ron Herman 二子玉川店", description: "カリフォルニアの自由な空気感を纏った、究極のライフスタイルショップ。", query: "ロンハーマン 二子玉川", brands: ["Ron Herman", "CP SHADES", "Frank & Eileen"] },
+    { id: 122, name: "Restir (乃木坂)", description: "スタイリストやエディター絶賛。世界中から最先端のモードをセレクト。", query: "リステア 乃木坂", brands: ["Maison Margiela", "Vetements", "Raf Simons"] },
+    { id: 123, name: "Union Tokyo", description: "ストリートカルチャーの原点。Supreme創設に深く関わった伝統のセレクト。", query: "UNION TOKYO 渋谷", brands: ["Union", "Supreme", "Marni"] },
+    { id: 124, name: "The Tokyo (丸の内)", description: "日本を代表するデザイナーズブランドをコミュニティとして発信する新しい場。", query: "THE TOKYO 丸の内", brands: ["White Mountaineering", "Sulvam"] },
+    { id: 125, name: "Maiden's Shop (神宮前)", description: "トレンドに左右されない服本来の良さを追求。玄人好みのセレクション。", query: "メイデンズショップ 神宮前", brands: ["Selected Items"] },
+    { id: 126, name: "R for D (代々木上原)", description: "「デザインと出会う」をテーマに、新鋭ブランドの実験的な服を揃える。", query: "R for D 代々木上原", brands: ["BALMUNG", "Bodysong"] },
+    { id: 127, name: "1LDK (中目黒)", description: "日常着をアップグレードする「1LDK」の本店。洗練された普通を提案。", query: "1LDK 中目黒", brands: ["Universal Products", "Studio Nicholson"] },
+    { id: 128, name: "Silver and Gold (TOKYO)", description: "大阪発の名店が新宿に。独自の審美眼と確かな品質、物語のある服が揃う。", query: "Silver and Gold 東京", brands: ["SCYE", "SAGE NATION"] },
+    { id: 129, name: "Digital Mountain (蔵前)", description: "広島発、オンラインで絶大な人気。機能と美を兼ね備えた独自の審美眼。", query: "Digital Mountain 東京", brands: ["South2 West8", "nanamica"] },
+    { id: 130, name: "Graphpaper Kyoto (Tokyo relation)", description: "京都の風情と東京のモダンが融合。洗練された日本のミニマリズム。", query: "Graphpaper 東京", brands: ["Graphpaper"] },
+
+    // --- さらに追加 (Fashion Press等のデータをベースに拡充) ---
+    { id: 131, name: "セルジオ ロッシ 日本橋三越", description: "優雅なシルエットと極上の履き心地を求める、日本橋の顧客へ向けた店舗。", query: "セルジオ ロッシ 日本橋三越", brands: ["Sergio Rossi"] },
+    { id: 132, name: "ア・テストーニ 日本橋三越", description: "イタリア・ボローニャが誇る、世界最高の靴職人の技が息づく。", query: "ア・テストーニ 日本橋三越", brands: ["a.testoni"] },
+    { id: 133, name: "Camper 日本橋タカシマヤ", description: "幅広い年代から支持される、家族で立ち寄れる使いやすい店舗。", query: "カンペール 日本橋タカシマヤ", brands: ["Camper"] },
+    { id: 134, name: "evam eva 日本橋タカシマヤ", description: "山梨の自然の中から生まれた、慈しむように纏う服と暮らしの道具。 ", query: "evam eva 日本橋タカシマヤ", brands: ["evam eva"] },
+    { id: 135, name: "Makers Shirt Kamakura アキバ・トリム", description: "秋葉原駅直結。忙しい朝も迷わずに選べる、信頼のシャツライブラリ。", query: "メーカーズシャツ鎌倉 秋葉原", brands: ["Kamakura Shirt"] },
+    { id: 136, name: "Fred Perry 東京ソラマチ", description: "スカイツリーを背景にした開放的な立地。ソラマチ限定アイテムも豊富。", query: "フレッドペリー ソラマチ", brands: ["Fred Perry"] },
+    { id: 137, name: "UGG atmos (千駄ヶ谷)", description: "UGGとatmosのハイブリッド。スニーカーのような感覚で履けるUGGを提案。", query: "UGG atmos 千駄ヶ谷", brands: ["UGG", "atmos"] },
+    { id: 138, name: "Oakley 松坂屋上野", description: "老舗百貨店の中で、最新のテクノロジーを駆使したアイウェアを提案。", query: "オークリー 松坂屋上野", brands: ["Oakley"] },
+    { id: 139, name: "D-due H.P.FRANCE 日本橋", description: "スペインの深い森から届く、物語を感じさせるアートな服をセレクト。", query: "D-due 日本橋", brands: ["D-due"] },
+    { id: 140, name: "Camper 新丸ビル", description: "丸の内での仕事帰りにも立ち寄りやすい、洗練された品揃え。", query: "カンペール 新丸ビル", brands: ["Camper"] },
+    { id: 141, name: "Fred Perry 新丸ビル", description: "落ち着いた大人の街・丸の内に相応しい、クールなセレクション。", query: "フレッドペリー 新丸ビル", brands: ["Fred Perry"] },
+    { id: 142, name: "evam eva 新丸ビル", description: "忙しい丸の内での喧騒を忘れさせてくれる、心落ち着くオーガニック空間。", query: "evam eva 新丸ビル", brands: ["evam eva"] },
+    { id: 143, name: "45R 丸の内", description: "歴史と伝統を感じさせる丸の内で、素材の物語を丁寧に伝えるショップ。 ", query: "45R 丸の内", brands: ["45R"] },
+    { id: 144, name: "Camper 松屋銀座", description: "銀座の老舗、松屋。その一角で革新し続けるスペインの履物職人。", query: "カンペール 松屋銀座", brands: ["Camper"] },
+    { id: 145, name: "The Zabou 東京都内", description: "普遍的な洋服の美しさを。大阪から全国へ発信するスタンダードの伝道師。", query: "ザボウ 銀座", brands: ["Selected Items"] },
+    { id: 146, name: "ST Dupont 銀座三越", description: "極上の男の嗜み。銀座三越でしか出会えない限定モデルも。", query: "ST Dupont 銀座三越", brands: ["ST Dupont"] },
+    { id: 147, name: "Sergio Rossi 銀座三越", description: "自分へのご褒美に。銀座の華やかさを足元から演出する一足。", query: "Sergio Rossi 銀座三越", brands: ["Sergio Rossi"] },
+    { id: 148, name: "Oakley 銀座三越", description: "最高のパフォーマンスを支えるアイウェアを、銀座の洗練された視点で提供。", query: "Oakley 銀座三越", brands: ["Oakley"] },
+    { id: 149, name: "Mark & Lona Ginza", description: "ゴルフ場でも自分らしさを。最先端のラグジュアリー・ゴルフを体験。", query: "Mark & Lona 銀座", brands: ["Mark & Lona"] },
+    { id: 150, name: "ST Dupont 阪急メンズ", description: "こだわり抜いた大人の男性へ。一生愛せる最高級の筆記具とライターを。", query: "ST Dupont 阪急メンズ東京", brands: ["ST Dupont"] },
+    { id: 151, name: "a.testoni 銀座本店", description: "イタリア・ボローニャの至宝。世界最高峰の靴作りを銀座から。", query: "ア・テストーニ 銀座", brands: ["a.testoni"] },
+    { id: 152, name: "Oakley Store アクアシティお台場", description: "スポーツからカジュアルまで、お台場の爽やかな空気感の中で提案。", query: "オークリーストア お台場", brands: ["Oakley"] },
+    { id: 153, name: "ST Dupont 伊勢丹メンズ", description: "感度の高い新宿の男性に向けて、伝統と革新を織り交ぜた名品を。", query: "ST Dupont 伊勢丹メンズ", brands: ["ST Dupont"] },
+    { id: 154, name: "Camper 伊勢丹新宿", description: "常に最新のトレンドを発信する伊勢丹で、カンペールが魅せる遊び心。", query: "カンペール 伊勢丹新宿", brands: ["Camper"] },
+    { id: 155, name: "NIWAKA 伊勢丹新宿", description: "日本を代表する美の殿堂・伊勢丹。そこで出会う至高のブライダルジュエリー。", query: "NIWAKA 伊勢丹新宿", brands: ["NIWAKA"] },
+    { id: 156, name: "45R 伊勢丹新宿", description: "多くの人が行き交う伊勢丹で、変わらない価値を伝え続ける天然素材。 ", query: "45R 伊勢丹新宿", brands: ["45R"] },
+    { id: 157, name: "Sergio Rossi 伊勢丹新宿", description: "世界一と言われる伊勢丹の靴フロア。その中心で放たれる圧倒的存在感。", query: "Sergio Rossi 伊勢丹新宿", brands: ["Sergio Rossi"] },
+    { id: 158, name: "ST Dupont 新宿タカシマヤ", description: "ギフトとしても定評のある、フレンチ・ラグジュアリーの極致。 ", query: "ST Dupont 新宿タカシマヤ", brands: ["ST Dupont"] },
+    { id: 159, name: "Camper 新宿タカシマヤ", description: "足に優しくデザインも良い。タカシマヤで長く愛される信頼の一足。", query: "カンペール 新宿タカシマヤ", brands: ["Camper"] },
+    { id: 160, name: "UGG 新宿タカシマヤ", description: "タカシマヤのお客様に相応しい、上質で温かみのあるコレクション。", query: "UGG 新宿タカシマヤ", brands: ["UGG"] },
+    { id: 161, name: "Marmot Store 新宿", description: "都会の日常から本格的なフィールドまで。技術の粋を集めたギアを新宿から。 ", query: "Marmot 新宿", brands: ["Marmot"] },
+    { id: 162, name: "Fred Perry ルミネ新宿", description: "新宿駅直結。移動の合間にも、ロンドン気質の高い服に出会える身近な場所。", query: "Fred Perry 新宿ルミネ", brands: ["Fred Perry"] },
+    { id: 163, name: "Camper 新宿フラッグス", description: "若者からファッション通まで集まるフラッグス。そこで個性を放つ靴。", query: "カンペール 新宿フラッグス", brands: ["Camper"] },
+    { id: 164, name: "Navy.wo 新宿タカシマヤ", description: "柔らかな空気感を纏う女性たちへ、繊細な手仕事を感じさせる毎日の一着。 ", query: "Navy.wo 新宿タカシマヤ", brands: ["Navy.wo"] },
+    { id: 165, name: "ST Dupont 新宿京王", description: "信頼を大切にするお客様へ、一流の証となる道具を丁寧に提案。 ", query: "ST Dupont 新宿京王", brands: ["ST Dupont"] },
+    { id: 166, name: "Fred Perry 新宿京王", description: "伝統的なスポーツミックススタイルを、親しみやすい空間で。 ", query: "Fred Perry 新宿京王", brands: ["Fred Perry"] },
+    { id: 167, name: "ANC Store Tokyo (千駄ヶ谷)", description: "千駄ヶ谷の隠れ家的な場所で、独自のカルチャーを発信するセレクト。", query: "ANC Store Tokyo", brands: ["Selected Items"] },
+    { id: 168, name: "PLASTANA 千駄ヶ谷", description: "素材の質感、形の美しさを大切にする、こだわり派のセレクトショップ。", query: "PLASTANA 千駄ヶ谷", brands: ["Selected Items"] },
+    { id: 169, name: "HW Dog&Co (神宮前)", description: "1860-1930年代の高品質な帽子を現代に復刻。古き良きアメトラの魂。 ", query: "HW Dog&Co 神宮前", brands: ["HW Dog&Co"] },
+    { id: 170, name: "mikia Gallery", description: "旅するジュエリー。世界中の旅からインスピレーションを受けた独自の作品。", query: "mikia 表参道", brands: ["mikia"] },
+    { id: 171, name: "NIWAKA 南青山", description: "静かな青山の裏通り。特別な一点をじっくりと探せるプライベート空間。", query: "NIWAKA 南青山", brands: ["NIWAKA"] },
+    { id: 172, name: "BADOU-R 本店 (青山)", description: "45Rのルーツと情熱が最も濃く込められた、聖地とも言える旗艦店。 ", query: "BADOU-R 青山", brands: ["45R"] },
+    { id: 173, name: "Roen 原宿", description: "「終わりはない」ことを意味するロエン。ロックで重厚な世界観を原宿から。", query: "Roen 原宿", brands: ["Roen"] },
+    { id: 174, name: "Aurora Gran 原宿", description: "繊細で詩的なジュエリー。原宿の賑わいの中に現れる静謐な空間。", query: "Aurora Gran 原宿", brands: ["Aurora Gran"] },
+    { id: 175, name: "evam eva 表参道ヒルズ", description: "洗練された表参道で、究極に削ぎ落とされた美しい日常着に出会う。", query: "evam eva 表参道", brands: ["evam eva"] },
+    { id: 176, name: "UGG Tokyo Flagship (原宿)", description: "世界初の旗艦店。ライフスタイルブランドとしてのUGGの全容がここに。", query: "UGG 原宿", brands: ["UGG"] },
+    { id: 177, name: "Serge Thoraval (青山)", description: "心に刻まれる言葉をジュエリーに。パリの詩情溢れる世界観が表参道に。", query: "セルジュトラヴァル 青山", brands: ["Serge Thoraval"] },
+    { id: 178, name: "CECIL ET JEANNE 青山", description: "パリから届く、色彩豊かなコスチュームジュエリー。日常に彩りを与える。", query: "セシルエジャンヌ 青山", brands: ["CECIL ET JEANNE"] },
+    { id: 179, name: "Justin Davis ラフォーレ原宿", description: "宝石とロックステディの融合。エッジの効いた高級ジュエリーショップ。 ", query: "Justin Davis 原宿", brands: ["Justin Davis"] },
+    { id: 180, name: "Oakley Store 原宿", description: "原宿の街で、最新のスポーツ・アイテクノロジーを身近に体感できる場所。", query: "オークリーストア 原宿", brands: ["Oakley"] },
+    { id: 181, name: "Kidill Room (渋谷)", description: "「パンク」な精神を現代に。狂気と純粋さが同居する唯一無二の小部屋。 ", query: "KIDILL 渋谷", brands: ["KIDILL"] },
+    { id: 182, name: "Maker's Shirt Kamakura アトレ品川", description: "オフィスが立ち並ぶ中、常に安定した品格ある一点。品川駅徒歩0分。", query: "メーカーズシャツ鎌倉 品川", brands: ["Kamakura Shirt"] },
+    { id: 183, name: "Spingle 原宿", description: "広島生まれ、究極のハンドメイド。履くほどに馴染む唯一無二のスニーカーを。 ", query: "SPINGLE 原宿", brands: ["SPINGLE"] },
+    { id: 184, name: "Kijima Takayuki 渋谷パルコ", description: "パルコの洗練に調和する、自由で遊び心溢れる帽子たちが揃う。", query: "KIJIMA TAKAYUKI 渋谷パルコ", brands: ["KIJIMA TAKAYUKI"] },
+    { id: 185, name: "Camper 渋谷パルコ", description: "公園のように楽しい空間で、カンペールが見せる最新のデザインを堪能。 ", query: "Camper 渋谷パルコ", brands: ["Camper"] },
+    { id: 186, name: "Oakley Store 渋谷", description: "渋谷の中心。ストリートから本格的なアクティビティまで幅広いニーズをカバー。", query: "オークリーストア 渋谷", brands: ["Oakley"] },
+    { id: 187, name: "Backlash (代官山)", description: "革の深淵。命の重みを感じさせる、究極のレザーウェアとレザーグッズ。 ", query: "BACKLASH 代官山", brands: ["ISAMU KATAYAMA BACKLASH"] },
+    { id: 188, name: "Maker's Shirt Kamakura アトレ恵比寿", description: "恵比寿での快適な日々を。高品質なシャツとネクタイでスタイルアップ。", query: "メーカーズシャツ鎌倉 恵比寿", brands: ["Kamakura Shirt"] },
+    { id: 189, name: "Camper アトレ恵比寿", description: "駅に近く、忙しい合間にも自分好みの一足が見つかる便利な店舗。 ", query: "Camper 恵比寿", brands: ["Camper"] },
+    { id: 190, name: "Makers Shirt Kamakura 渋谷マークシティ", description: "ビジネスの最前線・渋谷で戦うための、最高の勝負服をここで。 ", query: "メーカーズシャツ鎌倉 渋谷マークシティ", brands: ["Kamakura Shirt"] },
+    { id: 191, name: "JUZU (恵比寿)", description: "オーガニックな素材。地球と身体に優しい、持続可能なファッションの拠点。", query: "JUZU 恵比寿", brands: ["Go Hemp"] },
+    { id: 192, name: "Kijima Takayuki Daikanyama", description: "ハットメイカーの本店。熟練のスタッフと対話しながら、長く愛せる一点を。 ", query: "KIJIMA TAKAYUKI 代官山", brands: ["KIJIMA TAKAYUKI"] },
+    { id: 193, name: "Camper Daikanyama", description: "代官山の穏やかな街並みに馴染む、芸術品のような一足が見つかる。 ", query: "Camper 代官山", brands: ["Camper"] },
+    { id: 194, name: "5351代官山", description: "代官山の閑静な環境で、大人のためのハイエンドなモードを提案。", query: "5351 代官山", brands: ["5351"] },
+    { id: 195, name: "Parking Daikanyama", description: "独自の審美眼と多岐に渡るセレクト。代官山で立ち寄るべき新たな定番スポット。 ", query: "Parking 代官山", brands: ["Selected Items"] },
+    { id: 196, name: "Camper コピス吉祥寺", description: "ファミリーにも人気の街。子供から大人まで、家族みんなでカンペールの世界を。 ", query: "Camper 吉祥寺", brands: ["Camper"] },
+    { id: 197, name: "Spingle 吉祥寺", description: "素材にこだわる吉祥寺の顧客に向けて。職人が作る本物のスニーカー。", query: "SPINGLE 吉祥寺", brands: ["SPINGLE"] },
+    { id: 198, name: "Fred Perry 吉祥寺", description: "井の頭公園での穏やかな散歩にもぴったりの、清潔感あるスポーツカジュアル。", query: "Fred Perry 吉祥寺", brands: ["Fred Perry"] },
+    { id: 199, name: "Maker's Shirt Kamakura 自由が丘", description: "お洒落な大人の街・自由が丘。高品質なシャツと洗練されたライフスタイル。", query: "メーカーズシャツ鎌倉 自由が丘", brands: ["Kamakura Shirt"] },
+    { id: 200, name: "Camper 玉川タカシマヤ", description: "二子玉川の穏やかな日々を足元から。信頼のブランドが贈る、最高の一足。 ", query: "Camper 二子玉川", brands: ["Camper"] }
+];
+
+class FashionMap {
+    constructor() {
+        this.iframe = document.getElementById('gmap-embed');
+        this.activeShop = null;
+        this.init();
+    }
+
+    init() {
+        // Hide loader
+        setTimeout(() => {
+            document.getElementById('loader').style.opacity = '0';
+            setTimeout(() => {
+                document.getElementById('loader').style.display = 'none';
+            }, 500);
+        }, 1500);
+
+        this.renderShopList(SHOPS);
+        this.setupEventListeners();
+
+        // Initial map view (Tokyo Station)
+        this.updateMap("Tokyo Station Area");
+    }
+
+    updateMap(locationQuery) {
+        const freeEmbedUrl = `https://maps.google.com/maps?q=${encodeURIComponent(locationQuery)}&t=&z=16&ie=UTF8&iwloc=&output=embed`;
+        this.iframe.src = freeEmbedUrl;
+    }
+
+    renderShopList(shops) {
+        const listContainer = document.getElementById('shop-list');
+        listContainer.innerHTML = '';
+
+        shops.forEach(shop => {
+            const item = document.createElement('div');
+            item.className = 'shop-item';
+            if (this.activeShop && this.activeShop.id === shop.id) {
+                item.classList.add('active');
+            }
+
+            item.innerHTML = `
+                <div class="shop-item-name">${shop.name}</div>
+                <div class="shop-item-brands">${shop.brands.join(', ')}</div>
+            `;
+
+            item.onclick = () => this.selectShop(shop);
+            listContainer.appendChild(item);
+        });
+    }
+
+    selectShop(shop) {
+        this.activeShop = shop;
+        this.renderShopList(this.getFilteredShops()); // Refresh scroll list styles
+
+        // Update Map
+        this.updateMap(shop.query);
+
+        // Update Sidebar
+        const sidebar = document.getElementById('sidebar');
+        const detailsContainer = document.getElementById('shop-details');
+
+        detailsContainer.innerHTML = `
+            <h2 class="shop-name">${shop.name}</h2>
+            <p class="shop-desc">${shop.description}</p>
+            <h3 class="brand-list-title">Handling Brands</h3>
+            <div class="brand-tags">
+                ${shop.brands.map(brand => `<span class="brand-tag">${brand}</span>`).join('')}
+            </div>
+        `;
+
+        sidebar.classList.remove('hidden');
+
+        // Scroll into view if selected from list
+        const activeItem = document.querySelector('.shop-item.active');
+        if (activeItem) {
+            activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    }
+
+    getFilteredShops() {
+        const query = document.getElementById('brand-search').value.toLowerCase();
+        return SHOPS.filter(shop =>
+            shop.name.toLowerCase().includes(query) ||
+            shop.brands.some(b => b.toLowerCase().includes(query))
+        );
+    }
+
+    setupEventListeners() {
+        // Close sidebar
+        document.getElementById('close-sidebar').addEventListener('click', () => {
+            document.getElementById('sidebar').classList.add('hidden');
+        });
+
+        // Close ad banner
+        const adCloseBtn = document.getElementById('ad-close-btn');
+        if (adCloseBtn) {
+            adCloseBtn.addEventListener('click', () => {
+                document.getElementById('ad-banner-top').classList.add('ad-hidden');
+            });
+        }
+
+        // Search brands
+        const searchInput = document.getElementById('brand-search');
+        searchInput.addEventListener('input', () => {
+            const filtered = this.getFilteredShops();
+            this.renderShopList(filtered);
+        });
+    }
+}
+
+// Initialize App
+document.addEventListener('DOMContentLoaded', () => {
+    new FashionMap();
+});
+
+</script>
+</body>
+
+</html>
